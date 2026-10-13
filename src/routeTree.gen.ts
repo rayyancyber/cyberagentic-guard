@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedAssetsRouteImport } from './routes/_authenticated/assets'
 import { Route as AuthenticatedBlueTeamRouteImport } from './routes/_authenticated/blue-team'
+import { Route as AuthenticatedCtfRouteImport } from './routes/_authenticated/ctf'
 import { Route as AuthenticatedCyberRangeRouteImport } from './routes/_authenticated/cyber-range'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedIncidentsRouteImport } from './routes/_authenticated/incidents'
@@ -47,6 +48,11 @@ const AuthenticatedAssetsRoute = AuthenticatedAssetsRouteImport.update({
 const AuthenticatedBlueTeamRoute = AuthenticatedBlueTeamRouteImport.update({
   id: '/blue-team',
   path: '/blue-team',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCtfRoute = AuthenticatedCtfRouteImport.update({
+  id: '/ctf',
+  path: '/ctf',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedCyberRangeRoute = AuthenticatedCyberRangeRouteImport.update({
@@ -106,6 +112,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/assets': typeof AuthenticatedAssetsRoute
   '/blue-team': typeof AuthenticatedBlueTeamRoute
+  '/ctf': typeof AuthenticatedCtfRoute
   '/cyber-range': typeof AuthenticatedCyberRangeRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/incidents': typeof AuthenticatedIncidentsRoute
@@ -122,6 +129,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/assets': typeof AuthenticatedAssetsRoute
   '/blue-team': typeof AuthenticatedBlueTeamRoute
+  '/ctf': typeof AuthenticatedCtfRoute
   '/cyber-range': typeof AuthenticatedCyberRangeRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/incidents': typeof AuthenticatedIncidentsRoute
@@ -140,6 +148,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/assets': typeof AuthenticatedAssetsRoute
   '/_authenticated/blue-team': typeof AuthenticatedBlueTeamRoute
+  '/_authenticated/ctf': typeof AuthenticatedCtfRoute
   '/_authenticated/cyber-range': typeof AuthenticatedCyberRangeRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/incidents': typeof AuthenticatedIncidentsRoute
@@ -158,6 +167,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/assets'
     | '/blue-team'
+    | '/ctf'
     | '/cyber-range'
     | '/dashboard'
     | '/incidents'
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/assets'
     | '/blue-team'
+    | '/ctf'
     | '/cyber-range'
     | '/dashboard'
     | '/incidents'
@@ -191,6 +202,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/assets'
     | '/_authenticated/blue-team'
+    | '/_authenticated/ctf'
     | '/_authenticated/cyber-range'
     | '/_authenticated/dashboard'
     | '/_authenticated/incidents'
@@ -244,6 +256,13 @@ declare module '@tanstack/react-router' {
       path: '/blue-team'
       fullPath: '/blue-team'
       preLoaderRoute: typeof AuthenticatedBlueTeamRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/ctf': {
+      id: '/_authenticated/ctf'
+      path: '/ctf'
+      fullPath: '/ctf'
+      preLoaderRoute: typeof AuthenticatedCtfRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/cyber-range': {
@@ -322,6 +341,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAssetsRoute: typeof AuthenticatedAssetsRoute
   AuthenticatedBlueTeamRoute: typeof AuthenticatedBlueTeamRoute
+  AuthenticatedCtfRoute: typeof AuthenticatedCtfRoute
   AuthenticatedCyberRangeRoute: typeof AuthenticatedCyberRangeRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedIncidentsRoute: typeof AuthenticatedIncidentsRoute
@@ -337,6 +357,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAssetsRoute: AuthenticatedAssetsRoute,
   AuthenticatedBlueTeamRoute: AuthenticatedBlueTeamRoute,
+  AuthenticatedCtfRoute: AuthenticatedCtfRoute,
   AuthenticatedCyberRangeRoute: AuthenticatedCyberRangeRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedIncidentsRoute: AuthenticatedIncidentsRoute,

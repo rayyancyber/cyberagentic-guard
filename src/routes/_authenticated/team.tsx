@@ -103,7 +103,7 @@ function KanbanColumn({ title, tasks, onEdit, onMove, statusColor }: {
           >
             <div className="text-sm font-medium leading-snug">{t.title}</div>
             <div className="flex flex-wrap gap-1.5 mt-2">
-              <Chip tone={t.priority === "Critical" || t.priority === "High" ? "offense" : t.priority === "Medium" ? "warn" : "muted"}>
+              <Chip tone={t.priority === "Urgent" || t.priority === "High" ? "offense" : t.priority === "Medium" ? "warn" : "muted"}>
                 {t.priority}
               </Chip>
               {t.due_date && (

@@ -17,7 +17,7 @@ type Alert = Row<"alerts">;
 type Incident = Row<"incidents">;
 
 const ALERT_STATUSES = ["New", "Investigating", "Resolved", "False Positive"] as const;
-const INC_STATUSES = ["Open", "Investigating", "Contained", "Resolved", "Closed"] as const;
+const INC_STATUSES = ["Open", "Contained", "Eradicated", "Recovered", "Closed"] as const;
 const SEVERITIES = ["Critical", "High", "Medium", "Low", "Info"] as const;
 
 function AlertCard({ alert, onTriage, onEscalate }: { alert: Alert; onTriage: (id: string, status: string) => void; onEscalate: (a: Alert) => void }) {

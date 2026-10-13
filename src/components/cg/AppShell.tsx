@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 
 export const NAV = [
   { to: "/dashboard",       label: "Overview",            icon: LayoutDashboard },
+  { to: "/ctf",             label: "CTF Challenges",      icon: FlaskConical },
   { to: "/red-team",        label: "Red Team",            icon: Swords },
   { to: "/blue-team",       label: "Blue Team",           icon: ShieldCheck },
   { to: "/cyber-range",     label: "Cyber Range",         icon: FlaskConical },

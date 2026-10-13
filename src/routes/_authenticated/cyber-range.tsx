@@ -126,7 +126,7 @@ function CyberRange() {
   const userId = me.data?.user.id;
   const myProgress = progress.data?.filter((p) => p.user_id === userId) ?? [];
 
-  const getProgress = (labId: string) => myProgress.find((p) => p.item_key === labId && p.kind === "lab");
+  const getProgress = (labId: string) => myProgress.find((p) => p.item_key === labId && p.kind === "scenario");
   const isCompleted = (labId: string) => getProgress(labId)?.completed ?? false;
 
   const completedCount = LABS.filter((l) => isCompleted(l.id)).length;
@@ -135,11 +135,23 @@ function CyberRange() {
 
   const markComplete = (labId: string) => {
     const existing = getProgress(labId);
-    if (!userId) return;
+    if (!userId) {
+      toast.error("Please sign in to track progress");
+      return;
+    }
+    const lab = LABS.find((l) => l.id === labId);
     if (existing) {
-      save.mutate({ id: existing.id, values: { completed: true, score: LABS.find((l) => l.id === labId)?.points } });
+      save.mutate({ id: existing.id, values: { completed: true, score: lab?.points ?? 0 } });
     } else {
-      save.mutate({ values: { user_id: userId, item_key: labId, kind: "lab", completed: true, score: LABS.find((l) => l.id === labId)?.points ?? 0 } });
+      save.mutate({ 
+        values: { 
+          user_id: userId, 
+          item_key: labId, 
+          kind: "scenario" as const, 
+          completed: true, 
+          score: lab?.points ?? 0 
+        } 
+      });
     }
   };
 
@@ -267,3 +279,5 @@ function CyberRange() {
     </>
   );
 }
+
+import { toast } from "sonner";

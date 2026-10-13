@@ -1,6 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from '@tanstack/react-router'
 import { useState } from "react";
 import { BookOpen, ChevronDown, ChevronRight, ExternalLink, Star } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { PageHeader, Panel, Stat, Chip, Empty } from "@/components/cg/kit";
@@ -224,13 +225,16 @@ function Learning() {
   const isCompleted = (lessonId: string) => myProgress.some((p) => p.item_key === lessonId && p.completed);
 
   const toggleLesson = (lessonId: string) => {
+    if (!userId) {
+      toast.error("Please sign in to track progress");
+      return;
+    }
     const existing = myProgress.find((p) => p.item_key === lessonId);
     const nowCompleted = !isCompleted(lessonId);
-    if (!userId) return;
     if (existing) {
       save.mutate({ id: existing.id, values: { completed: nowCompleted } });
     } else {
-      save.mutate({ values: { user_id: userId, item_key: lessonId, kind: "lesson", completed: true } });
+      save.mutate({ values: { user_id: userId, item_key: lessonId, kind: "lesson" as const, completed: true } });
     }
   };
 

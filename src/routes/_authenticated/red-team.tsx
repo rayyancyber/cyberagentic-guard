@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_authenticated/red-team")({
 
 type Assessment = Row<"assessments">;
 
-const STATUS = ["Planning", "Active", "Paused", "Completed", "Cancelled"] as const;
+const STATUS = ["Planned", "Active", "Completed", "Cancelled"] as const;
 
 function AssessmentForm({ item, onDone }: { item?: Assessment; onDone: () => void }) {
   const save = useSave("assessments");
@@ -29,7 +29,7 @@ function AssessmentForm({ item, onDone }: { item?: Assessment; onDone: () => voi
     scope: item?.scope ?? "",
     description: item?.description ?? "",
     authorization_note: item?.authorization_note ?? "",
-    status: item?.status ?? "Planning",
+    status: item?.status ?? "Planned",
     asset_ids: item?.asset_ids ?? [] as string[],
     progress: item?.progress ?? 0,
   });
@@ -208,7 +208,7 @@ function RedTeam() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => save.mutate({ id: a.id, values: { status: a.status === "Active" ? "Paused" : "Active" } })}
+                      onClick={() => save.mutate({ id: a.id, values: { status: a.status === "Active" ? "Planned" : "Active" } })}
                     >
                       {a.status === "Active" ? <RefreshCw className="h-3.5 w-3.5" /> : <Crosshair className="h-3.5 w-3.5" />}
                     </Button>

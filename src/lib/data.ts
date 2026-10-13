@@ -31,19 +31,96 @@ export function useSave<T extends TableName>(table: T, invalidate: TableName[] =
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (args: { id?: string; values?: Partial<Tables[T]["Insert"]>; remove?: boolean }) => {
+      // ✅ FIX: Verify auth session exists AND refresh if needed
+      let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      
+      // If session error or no session, try to refresh
+      if (sessionError || !sessionData.session) {
+        console.warn("[useSave] No session found, attempting refresh...");
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        
+        if (refreshError || !refreshData.session) {
+          console.error("[useSave] Session refresh failed:", refreshError);
+          throw new Error("Session expired. Please sign in again.");
+        }
+        
+        sessionData = refreshData;
+        console.log("[useSave] Session refreshed successfully");
+      }
+
+      if (!sessionData.session) {
+        throw new Error("Authentication required. Please sign in again.");
+      }
+
       const t = supabase.from(table) as any;
+      const userId = sessionData.session.user.id;
+      
+      // For insert operations, ensure user_id is set when needed
+      if (!args.remove && !args.id && args.values) {
+        // Tables that require user_id
+        if (table === "progress" && !args.values.user_id) {
+          args.values.user_id = userId;
+        }
+        // Tables that have created_by/owner_id fields
+        if ((table === "assets" || table === "findings" || table === "team_tasks") && !args.values.created_by) {
+          args.values.created_by = userId;
+        }
+        if ((table === "assessments" || table === "incidents") && !args.values.owner_id) {
+          args.values.owner_id = userId;
+        }
+        if (table === "task_comments" && !args.values.author_id) {
+          args.values.author_id = userId;
+        }
+        if (table === "evidence" && !args.values.uploaded_by) {
+          args.values.uploaded_by = userId;
+        }
+        if (table === "security_events" && !args.values.created_at) {
+          // Ensure created_at is set for events
+          args.values.created_at = new Date().toISOString();
+        }
+      }
+
+      console.log(`[useSave] Attempting ${args.remove ? 'DELETE' : args.id ? 'UPDATE' : 'INSERT'} on table:`, table);
+
       const res = args.remove
         ? await t.delete().eq("id", args.id)
         : args.id
-          ? await t.update(args.values).eq("id", args.id)
-          : await t.insert(args.values);
-      if (res.error) throw res.error;
+          ? await t.update(args.values).eq("id", args.id).select()
+          : await t.insert(args.values).select();
+      
+      if (res.error) {
+        console.error("[useSave] Database operation failed:", {
+          table,
+          operation: args.remove ? 'DELETE' : args.id ? 'UPDATE' : 'INSERT',
+          error: res.error,
+          values: args.values
+        });
+        throw res.error;
+      }
+      
+      console.log(`[useSave] Success on table ${table}:`, res.data);
+      return res.data;
     },
     onSuccess: (_d, args) => {
       toast.success(args.remove ? "Deleted" : args.id ? "Saved" : "Created");
       [table, ...invalidate].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => {
+      const msg = e.message.toLowerCase();
+      console.error("[useSave] Error:", e);
+      
+      if (msg.includes("row-level security") || msg.includes("rls")) {
+        toast.error("Permission denied. Please refresh the page and try again.");
+      } else if (msg.includes("authentication") || msg.includes("auth") || msg.includes("session")) {
+        toast.error("Session expired. Please refresh the page.");
+      } else if (msg.includes("unique") || msg.includes("duplicate")) {
+        toast.error("This record already exists.");
+      } else if (msg.includes("foreign key") || msg.includes("violates")) {
+        toast.error("Invalid reference. Please check linked resources.");
+      } else {
+        toast.error(e.message);
+      }
+    },
   });
 }
 

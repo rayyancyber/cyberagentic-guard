@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
-import { getFirebaseAuth } from "@/integrations/firebase/client";
+import { getFirebaseAuth, getIdToken } from "@/integrations/firebase/client";
+import { bridgeEmail, bridgeGoogle, supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/cg/AppShell";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -16,6 +17,40 @@ export const Route = createFileRoute("/_authenticated")({
     }
 
     if (!auth.currentUser) throw redirect({ to: "/auth" });
+
+    // ✅ FIX: Ensure Supabase session is synced with Firebase
+    const { data: supaSession } = await supabase.auth.getSession();
+    
+    // If no Supabase session or it doesn't match Firebase user, bridge again
+    if (!supaSession.session || supaSession.session.user.email !== auth.currentUser.email) {
+      console.log("[Auth] Re-syncing Firebase → Supabase session...");
+      
+      // Try to get Google ID token if available
+      const idToken = await getIdToken(true); // force refresh
+      
+      if (auth.currentUser.providerData[0]?.providerId === "google.com" && idToken) {
+        // Google user - use ID token
+        await bridgeGoogle(idToken).catch(err => {
+          console.warn("[Auth] Google bridge failed, trying email bridge:", err);
+          // Fallback to email bridge with UID as password
+          return bridgeEmail(auth.currentUser!.email!, auth.currentUser!.uid);
+        });
+      } else if (auth.currentUser.email) {
+        // Email user - use UID as password (Firebase and Supabase stay in sync)
+        await bridgeEmail(auth.currentUser.email, auth.currentUser.uid).catch(err => {
+          console.error("[Auth] Email bridge failed:", err);
+        });
+      }
+      
+      // Verify session was created
+      const { data: newSession } = await supabase.auth.getSession();
+      if (!newSession.session) {
+        console.error("[Auth] Failed to create Supabase session");
+        throw redirect({ to: "/auth" });
+      }
+      
+      console.log("[Auth] Supabase session synced successfully");
+    }
   },
   component: () => <AppShell><Outlet /></AppShell>,
 });
