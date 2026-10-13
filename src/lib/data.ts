@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { ensureSupabaseSession, validateSession } from "@/lib/session";
 import type { Database } from "@/integrations/supabase/types";
 
 export type Tables = Database["public"]["Tables"];
@@ -31,37 +32,31 @@ export function useSave<T extends TableName>(table: T, invalidate: TableName[] =
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (args: { id?: string; values?: Partial<Tables[T]["Insert"]>; remove?: boolean }) => {
-      // ✅ FIX: Verify auth session exists AND refresh if needed
-      let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      // ✅ CRITICAL FIX: Use robust session management
+      console.log(`🔄 [useSave:${table}] Ensuring valid session...`);
+      const session = await ensureSupabaseSession();
       
-      // If session error or no session, try to refresh
-      if (sessionError || !sessionData.session) {
-        console.warn("[useSave] No session found, attempting refresh...");
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-        
-        if (refreshError || !refreshData.session) {
-          console.error("[useSave] Session refresh failed:", refreshError);
-          throw new Error("Session expired. Please sign in again.");
-        }
-        
-        sessionData = refreshData;
-        console.log("[useSave] Session refreshed successfully");
+      if (!session) {
+        console.error(`❌ [useSave:${table}] Could not establish session`);
+        throw new Error("Please sign in again to continue.");
       }
 
-      if (!sessionData.session) {
-        throw new Error("Authentication required. Please sign in again.");
+      const userId = validateSession(session);
+      if (!userId) {
+        console.error(`❌ [useSave:${table}] Invalid session: no user ID`);
+        throw new Error("Invalid session. Please sign in again.");
       }
+
+      console.log(`✅ [useSave:${table}] Session valid, user:`, session.user.email);
 
       const t = supabase.from(table) as any;
-      const userId = sessionData.session.user.id;
       
       // For insert operations, ensure user_id is set when needed
       if (!args.remove && !args.id && args.values) {
-        // Tables that require user_id
+        // Auto-inject user IDs based on table
         if (table === "progress" && !args.values.user_id) {
           args.values.user_id = userId;
         }
-        // Tables that have created_by/owner_id fields
         if ((table === "assets" || table === "findings" || table === "team_tasks") && !args.values.created_by) {
           args.values.created_by = userId;
         }
@@ -75,12 +70,17 @@ export function useSave<T extends TableName>(table: T, invalidate: TableName[] =
           args.values.uploaded_by = userId;
         }
         if (table === "security_events" && !args.values.created_at) {
-          // Ensure created_at is set for events
+          args.values.created_at = new Date().toISOString();
+        }
+        if (table === "detection_rules" && !args.values.created_at) {
+          args.values.created_at = new Date().toISOString();
+        }
+        if (table === "alerts" && !args.values.created_at) {
           args.values.created_at = new Date().toISOString();
         }
       }
 
-      console.log(`[useSave] Attempting ${args.remove ? 'DELETE' : args.id ? 'UPDATE' : 'INSERT'} on table:`, table);
+      console.log(`🔄 [useSave:${table}] ${args.remove ? 'DELETE' : args.id ? 'UPDATE' : 'INSERT'}...`);
 
       const res = args.remove
         ? await t.delete().eq("id", args.id)
@@ -89,16 +89,11 @@ export function useSave<T extends TableName>(table: T, invalidate: TableName[] =
           : await t.insert(args.values).select();
       
       if (res.error) {
-        console.error("[useSave] Database operation failed:", {
-          table,
-          operation: args.remove ? 'DELETE' : args.id ? 'UPDATE' : 'INSERT',
-          error: res.error,
-          values: args.values
-        });
+        console.error(`❌ [useSave:${table}] Database error:`, res.error);
         throw res.error;
       }
       
-      console.log(`[useSave] Success on table ${table}:`, res.data);
+      console.log(`✅ [useSave:${table}] Success!`);
       return res.data;
     },
     onSuccess: (_d, args) => {
@@ -107,18 +102,22 @@ export function useSave<T extends TableName>(table: T, invalidate: TableName[] =
     },
     onError: (e: Error) => {
       const msg = e.message.toLowerCase();
-      console.error("[useSave] Error:", e);
+      console.error("[useSave] Error:", e.message);
       
       if (msg.includes("row-level security") || msg.includes("rls")) {
-        toast.error("Permission denied. Please refresh the page and try again.");
-      } else if (msg.includes("authentication") || msg.includes("auth") || msg.includes("session")) {
-        toast.error("Session expired. Please refresh the page.");
+        toast.error("Permission denied. Please sign out and sign in again.");
+      } else if (msg.includes("sign in again")) {
+        toast.error(e.message);
+        // Redirect to auth after a delay
+        setTimeout(() => {
+          window.location.href = "/auth";
+        }, 2000);
       } else if (msg.includes("unique") || msg.includes("duplicate")) {
         toast.error("This record already exists.");
       } else if (msg.includes("foreign key") || msg.includes("violates")) {
         toast.error("Invalid reference. Please check linked resources.");
       } else {
-        toast.error(e.message);
+        toast.error(e.message || "An error occurred. Please try again.");
       }
     },
   });
