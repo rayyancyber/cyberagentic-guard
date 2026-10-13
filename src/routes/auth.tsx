@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Eye, EyeOff, ShieldCheck, Swords, Lock, Mail, RefreshCw, Chrome } from "lucide-react";
+import { Eye, EyeOff, ShieldCheck, Swords, Lock, Mail, RefreshCw } from "lucide-react";
 import {
   signInWithEmail,
   signUpWithEmail,
@@ -10,7 +10,7 @@ import {
   onFirebaseAuthChange,
   getCurrentUser,
 } from "@/integrations/firebase/client";
-import { syncSupabaseSession, signOutAll, bridgeGoogleToSupabase, bridgeEmailToSupabase } from "@/integrations/supabase/client";
+import { bridgeGoogle, bridgeEmail } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Logo, Field } from "@/components/cg/kit";
@@ -27,97 +27,59 @@ export const Route = createFileRoute("/auth")({
 
 type Mode = "signin" | "signup" | "reset";
 
-// Translate Firebase error codes to friendly messages
-function friendlyError(code: string, message: string): string {
-  const map: Record<string, string> = {
-    "auth/user-not-found": "No account found with this email.",
-    "auth/wrong-password": "Wrong password. Try again or reset it.",
-    "auth/invalid-credential": "Wrong email or password.",
-    "auth/invalid-email": "Enter a valid email address.",
-    "auth/email-already-in-use": "An account with this email already exists. Sign in instead.",
-    "auth/weak-password": "Password must be at least 6 characters.",
-    "auth/too-many-requests": "Too many attempts. Wait a moment and try again.",
+function friendlyFirebaseError(code: string, fallback: string): string {
+  const m: Record<string, string> = {
+    "auth/user-not-found":       "No account with that email.",
+    "auth/wrong-password":       "Wrong password.",
+    "auth/invalid-credential":   "Wrong email or password.",
+    "auth/invalid-email":        "Enter a valid email address.",
+    "auth/email-already-in-use": "That email already has an account. Sign in instead.",
+    "auth/weak-password":        "Password must be at least 6 characters.",
+    "auth/too-many-requests":    "Too many attempts — wait a moment.",
     "auth/network-request-failed": "Network error. Check your connection.",
-    "auth/popup-closed-by-user": "Sign-in popup was closed. Try again.",
-    "auth/popup-blocked": "Popup was blocked by your browser. Allow popups for this site.",
+    "auth/popup-closed-by-user": "Popup was closed. Try again.",
+    "auth/popup-blocked":        "Your browser blocked the popup. Allow popups and retry.",
     "auth/cancelled-popup-request": "",
-    "auth/user-disabled": "This account has been disabled.",
-    "auth/operation-not-allowed": "This sign-in method is not enabled.",
-    "auth/requires-recent-login": "Please sign in again to complete this action.",
+    "auth/user-disabled":        "This account has been disabled.",
   };
-  return map[code] ?? message;
+  return m[code] ?? fallback;
 }
 
-function GoogleButton({ onClick, busy }: { onClick: () => void; busy: boolean }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={busy}
-      className="flex w-full items-center justify-center gap-3 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium transition-colors hover:bg-accent disabled:opacity-50"
-    >
-      {/* Google SVG logo */}
-      <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" aria-hidden>
-        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
-        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-      </svg>
-      {busy ? "Signing in…" : "Continue with Google"}
-    </button>
-  );
-}
-
-function Divider() {
-  return (
-    <div className="flex items-center gap-3 my-1">
-      <div className="flex-1 border-t border-border" />
-      <span className="text-xs text-muted-foreground">or</span>
-      <div className="flex-1 border-t border-border" />
-    </div>
-  );
-}
-
-function AuthPage() {
+export default function AuthPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<Mode>("signin");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPw, setShowPw] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [mode, setMode]           = useState<Mode>("signin");
+  const [email, setEmail]         = useState("");
+  const [password, setPassword]   = useState("");
+  const [showPw, setShowPw]       = useState(false);
+  const [busy, setBusy]           = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [verifyPending, setVerifyPending] = useState(false);
 
-  // If already signed in, go to dashboard
+  // Redirect if Firebase already has a session
   useEffect(() => {
-    const current = getCurrentUser();
-    if (current) { navigate({ to: "/dashboard", replace: true }); return; }
-    const unsub = onFirebaseAuthChange((user) => {
-      if (user) navigate({ to: "/dashboard", replace: true });
-    });
-    return unsub;
+    if (getCurrentUser()) { navigate({ to: "/dashboard", replace: true }); return; }
+    return onFirebaseAuthChange((u) => { if (u) navigate({ to: "/dashboard", replace: true }); });
   }, [navigate]);
 
+  // ── Google ──────────────────────────────────────────────────────────────────
   const handleGoogle = async () => {
     setGoogleBusy(true);
     try {
       const { user, idToken } = await signInWithGoogle();
-      // Bridge to Supabase so RLS works (Google id_token exchange — no email confirm needed)
-      if (idToken) {
-        await bridgeGoogleToSupabase(idToken).catch(() => {});
-      } else if (user.email) {
-        await bridgeEmailToSupabase(user.email, user.uid).catch(() => {});
-      }
-      // onFirebaseAuthChange will navigate to /dashboard
+      // Bridge to Supabase for RLS
+      if (idToken) await bridgeGoogle(idToken).catch(() => {});
+      else if (user.email) await bridgeEmail(user.email, user.uid).catch(() => {});
+      // onFirebaseAuthChange will navigate
     } catch (err: any) {
-      const msg = friendlyError(err.code ?? "", err.message ?? "Google sign-in failed.");
+      const msg = friendlyFirebaseError(err.code ?? "", err.message ?? "Google sign-in failed.");
       if (msg) toast.error(msg);
     } finally {
       setGoogleBusy(false);
     }
   };
 
+  // ── Email / password / reset ────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -127,43 +89,38 @@ function AuthPage() {
         await resetPassword(email);
         setResetSent(true);
       } catch (err: any) {
-        toast.error(friendlyError(err.code ?? "", err.message ?? "Reset failed."));
-      } finally {
-        setBusy(false);
+        toast.error(friendlyFirebaseError(err.code ?? "", err.message ?? "Reset failed."));
       }
+      setBusy(false);
       return;
     }
 
     if (mode === "signup") {
       try {
         const user = await signUpWithEmail(email, password);
+        // Bridge Supabase (may need email confirm first, but we try)
+        await bridgeEmail(email, password).catch(() => {});
         setBusy(false);
-        // Attempt Supabase session bridge (may need email confirmation first)
-        await bridgeEmailToSupabase(email, password).catch(() => {});
-        if (!user.emailVerified) {
-          setVerifyPending(true);
-        }
+        if (!user.emailVerified) setVerifyPending(true);
       } catch (err: any) {
         setBusy(false);
-        toast.error(friendlyError(err.code ?? "", err.message ?? "Sign-up failed."));
+        toast.error(friendlyFirebaseError(err.code ?? "", err.message ?? "Sign-up failed."));
       }
       return;
     }
 
-    // signin
+    // sign in
     try {
       await signInWithEmail(email, password);
-      // Bridge to Supabase so RLS auth.uid() is set for all DB writes
-      await bridgeEmailToSupabase(email, password).catch(() => {});
-      // onFirebaseAuthChange navigates to dashboard
+      await bridgeEmail(email, password).catch(() => {});
+      // onFirebaseAuthChange navigates
     } catch (err: any) {
       setBusy(false);
       const code = err.code ?? "";
       if (code === "auth/email-not-verified") {
         setVerifyPending(true);
-        setMode("signup");
       } else {
-        toast.error(friendlyError(code, err.message ?? "Sign-in failed."));
+        toast.error(friendlyFirebaseError(code, err.message ?? "Sign-in failed."));
       }
     }
   };
@@ -176,22 +133,17 @@ function AuthPage() {
       <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
         <div className="absolute -left-40 -top-40 h-[500px] w-[500px] rounded-full bg-offense/5 blur-3xl" />
         <div className="absolute -bottom-40 -right-40 h-[500px] w-[500px] rounded-full bg-defense/5 blur-3xl" />
-        <div className="absolute left-1/2 top-1/2 h-[300px] w-[300px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/3 blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-sm">
-        {/* Card */}
         <div className="rounded-2xl border bg-card/95 p-8 shadow-glow backdrop-blur-sm">
-          {/* Logo + brand */}
+
+          {/* Brand header */}
           <div className="mb-6 flex items-center gap-2.5">
             <Logo className="h-8 w-8" />
             <div>
-              <div className="font-semibold tracking-tight">
-                CYBERGUARD <span className="text-primary">X</span>
-              </div>
-              <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                Security Lab
-              </div>
+              <div className="font-semibold tracking-tight">CYBERGUARD <span className="text-primary">X</span></div>
+              <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Security Lab</div>
             </div>
           </div>
 
@@ -201,93 +153,92 @@ function AuthPage() {
             {mode === "reset" && "Reset your password"}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {mode === "signin" && "The first registered account becomes lab administrator."}
-            {mode === "signup" && "First account gets admin role. Use a strong password (6+ chars)."}
+            {mode === "signin" && "First registered account becomes lab administrator."}
+            {mode === "signup" && "Use a real email — verification required. First account gets admin."}
             {mode === "reset" && "Enter your email and we'll send a reset link."}
           </p>
 
-          {/* Email verification pending */}
+          {/* ── States ── */}
+
           {verifyPending ? (
             <div className="mt-6 space-y-4">
               <div className="rounded-lg border border-primary/40 bg-primary/10 p-4 text-sm text-center">
                 <Mail className="h-6 w-6 mx-auto mb-2 text-primary" />
                 <div className="font-medium mb-1">Verify your email</div>
                 <div className="text-muted-foreground text-xs">
-                  A verification link was sent to{" "}
-                  <strong className="text-foreground">{email}</strong>.
-                  Click it, then sign in below.
+                  A verification link was sent to <strong className="text-foreground">{email}</strong>.
+                  Click it, then sign in.
                 </div>
               </div>
-              <button
-                className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
-                onClick={() => { setVerifyPending(false); setMode("signin"); }}
-              >
+              <button className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => { setVerifyPending(false); setMode("signin"); }}>
                 ← Back to sign in
               </button>
             </div>
 
           ) : resetSent ? (
-            /* Reset link sent */
             <div className="mt-6 space-y-4">
               <div className="rounded-lg border border-defense/40 bg-defense/10 p-4 text-sm text-center">
                 <ShieldCheck className="h-5 w-5 mx-auto mb-2 text-defense" />
                 <div className="font-medium mb-1">Reset link sent</div>
                 <div className="text-muted-foreground text-xs">
-                  Check your inbox at{" "}
-                  <strong className="text-foreground">{email}</strong>.
+                  Check your inbox at <strong className="text-foreground">{email}</strong>.
                 </div>
               </div>
-              <button
-                className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
-                onClick={() => { setResetSent(false); setMode("signin"); }}
-              >
+              <button className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => { setResetSent(false); setMode("signin"); }}>
                 ← Back to sign in
               </button>
             </div>
 
           ) : (
-            /* Main form */
             <div className="mt-6 space-y-3">
-              {/* Google button — show on signin + signup */}
+
+              {/* Google button */}
               {mode !== "reset" && (
                 <>
-                  <GoogleButton onClick={handleGoogle} busy={googleBusy} />
-                  <Divider />
+                  <button
+                    type="button"
+                    onClick={handleGoogle}
+                    disabled={googleBusy}
+                    className="flex w-full items-center justify-center gap-3 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium transition-colors hover:bg-accent disabled:opacity-50"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" aria-hidden>
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                    </svg>
+                    {googleBusy ? "Signing in…" : "Continue with Google"}
+                  </button>
+
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 border-t border-border" />
+                    <span className="text-xs text-muted-foreground">or</span>
+                    <div className="flex-1 border-t border-border" />
+                  </div>
                 </>
               )}
 
+              {/* Email / password form */}
               <form onSubmit={handleSubmit} className="space-y-4">
                 <Field label="Email">
-                  <Input
-                    type="email"
-                    required
-                    autoComplete="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="analyst@yourmail.com"
-                  />
+                  <Input type="email" required autoComplete="email" value={email}
+                    onChange={(e) => setEmail(e.target.value)} placeholder="analyst@yourmail.com" />
                 </Field>
 
                 {mode !== "reset" && (
                   <Field label="Password">
                     <div className="relative">
                       <Input
-                        type={showPw ? "text" : "password"}
-                        required
-                        minLength={6}
+                        type={showPw ? "text" : "password"} required minLength={6}
                         autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="pr-10"
+                        value={password} onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••" className="pr-10"
                       />
-                      <button
-                        type="button"
-                        onClick={() => setShowPw(!showPw)}
-                        tabIndex={-1}
+                      <button type="button" tabIndex={-1} onClick={() => setShowPw(!showPw)}
                         aria-label={showPw ? "Hide password" : "Show password"}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                      >
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                         {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
@@ -296,11 +247,8 @@ function AuthPage() {
 
                 {mode === "signin" && (
                   <div className="flex justify-end -mt-1">
-                    <button
-                      type="button"
-                      className="text-xs text-muted-foreground hover:text-primary transition-colors"
-                      onClick={() => setMode("reset")}
-                    >
+                    <button type="button" onClick={() => setMode("reset")}
+                      className="text-xs text-muted-foreground hover:text-primary transition-colors">
                       Forgot password?
                     </button>
                   </div>
@@ -318,32 +266,21 @@ function AuthPage() {
             </div>
           )}
 
-          {/* Footer links */}
+          {/* Mode switcher */}
           {!verifyPending && !resetSent && (
             <div className="mt-4 text-center text-sm">
               {mode === "signin" && (
-                <button
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  onClick={() => setMode("signup")}
-                >
-                  No account?{" "}
-                  <span className="text-primary font-medium">Sign up</span>
+                <button onClick={() => setMode("signup")} className="text-muted-foreground hover:text-foreground transition-colors">
+                  No account? <span className="text-primary font-medium">Sign up</span>
                 </button>
               )}
               {mode === "signup" && (
-                <button
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  onClick={() => setMode("signin")}
-                >
-                  Already have an account?{" "}
-                  <span className="text-primary font-medium">Sign in</span>
+                <button onClick={() => setMode("signin")} className="text-muted-foreground hover:text-foreground transition-colors">
+                  Have an account? <span className="text-primary font-medium">Sign in</span>
                 </button>
               )}
               {mode === "reset" && (
-                <button
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  onClick={() => setMode("signin")}
-                >
+                <button onClick={() => setMode("signin")} className="text-muted-foreground hover:text-foreground transition-colors">
                   ← Back to sign in
                 </button>
               )}
@@ -354,16 +291,13 @@ function AuthPage() {
         {/* Feature pills */}
         <div className="mt-6 flex justify-center gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 rounded-full border bg-card/60 px-3 py-1.5 text-xs backdrop-blur">
-            <Swords className="h-3 w-3 text-offense" />
-            <span className="text-muted-foreground">Red Team</span>
+            <Swords className="h-3 w-3 text-offense" /><span className="text-muted-foreground">Red Team</span>
           </div>
           <div className="flex items-center gap-1.5 rounded-full border bg-card/60 px-3 py-1.5 text-xs backdrop-blur">
-            <ShieldCheck className="h-3 w-3 text-defense" />
-            <span className="text-muted-foreground">Blue Team detection</span>
+            <ShieldCheck className="h-3 w-3 text-defense" /><span className="text-muted-foreground">Blue Team</span>
           </div>
           <div className="flex items-center gap-1.5 rounded-full border bg-card/60 px-3 py-1.5 text-xs backdrop-blur">
-            <Lock className="h-3 w-3 text-primary" />
-            <span className="text-muted-foreground">Evidence & reports</span>
+            <Lock className="h-3 w-3 text-primary" /><span className="text-muted-foreground">Evidence & Reports</span>
           </div>
         </div>
       </div>

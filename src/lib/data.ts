@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { getCurrentUser } from "@/integrations/firebase/client";
 import type { Database } from "@/integrations/supabase/types";
 
 export type Tables = Database["public"]["Tables"];
@@ -15,7 +14,6 @@ export const VULN_STATUSES = [
 export const OPEN_VULN = ["Discovered", "Triaged", "Assigned", "Fix in Progress", "Ready for Verification"];
 export const TASK_STATUSES = ["Backlog", "To Do", "In Progress", "Review", "Done"] as const;
 
-/** Read every row of a shared team table (RLS applies as the signed-in user). */
 export function useRows<T extends TableName>(table: T, opts?: { order?: string; ascending?: boolean; limit?: number }) {
   return useQuery({
     queryKey: [table, opts],
@@ -29,7 +27,6 @@ export function useRows<T extends TableName>(table: T, opts?: { order?: string; 
   });
 }
 
-/** Insert / update / delete with toast feedback and cache refresh. */
 export function useSave<T extends TableName>(table: T, invalidate: TableName[] = []) {
   const qc = useQueryClient();
   return useMutation({
@@ -65,13 +62,12 @@ export function useMe() {
   return useQuery({
     queryKey: ["me"],
     queryFn: async () => {
-      // Use Firebase for current user identity
-      const fbUser = getCurrentUser();
-      if (!fbUser) return null;
-      const userId = fbUser.uid;
-      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", userId);
+      const { data } = await supabase.auth.getUser();
+      const user = data.user;
+      if (!user) return null;
+      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
       return {
-        user: { id: userId, email: fbUser.email ?? "" },
+        user,
         roles: (roles ?? []).map((r) => r.role),
         isAdmin: !!roles?.some((r) => r.role === "admin"),
       };
@@ -79,7 +75,6 @@ export function useMe() {
   });
 }
 
-/** Mean time in minutes between two timestamp fields, from stored records only. */
 export function meanMinutes<T>(rows: T[], from: (r: T) => string | null, to: (r: T) => string | null) {
   const d = rows
     .map((r) => [from(r), to(r)] as const)
@@ -88,7 +83,6 @@ export function meanMinutes<T>(rows: T[], from: (r: T) => string | null, to: (r:
   return d.length ? Math.round(d.reduce((x, y) => x + y, 0) / d.length) : null;
 }
 
-/** Security posture: 100 minus weighted open findings and open alerts, floored at 0. */
 export function postureScore(findings: { severity: string; status: string }[], openAlerts: number) {
   const w: Record<string, number> = { Critical: 15, High: 8, Medium: 4, Low: 1, Info: 0 };
   const penalty = findings.filter((f) => OPEN_VULN.includes(f.status)).reduce((s, f) => s + (w[f.severity] ?? 0), 0);
