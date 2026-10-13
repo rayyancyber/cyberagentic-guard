@@ -1,0 +1,7 @@
+node_modules/
+.output/
+.vercel/
+dist/
+.env.local
+*.log
+.wrangler/

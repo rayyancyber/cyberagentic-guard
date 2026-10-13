@@ -1,0 +1,13 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": ".output/public",
+  "installCommand": "npm install --legacy-peer-deps",
+  "framework": null,
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": ".output/server/index.mjs" },
+    { "source": "/((?!_next|favicon.ico|robots.txt).*)", "destination": "/index.html" }
+  ],
+  "env": {
+    "NITRO_PRESET": "vercel"
+  }
+}
