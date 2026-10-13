@@ -66,12 +66,30 @@ export default function AuthPage() {
   const handleGoogle = async () => {
     setGoogleBusy(true);
     try {
+      console.log('[Auth] Starting Google sign-in');
       const { user, idToken } = await signInWithGoogle();
+      console.log('[Auth] Google sign-in successful for', user.email);
+      
       // Bridge to Supabase for RLS
-      if (idToken) await bridgeGoogle(idToken).catch(() => {});
-      else if (user.email) await bridgeEmail(user.email, user.uid).catch(() => {});
+      try {
+        if (idToken) {
+          console.log('[Auth] Bridging with Google ID token');
+          await bridgeGoogle(idToken);
+        } else if (user.email) {
+          console.log('[Auth] Bridging with email (no ID token)');
+          await bridgeEmail(user.email, user.uid);
+        }
+        console.log('[Auth] Supabase bridge successful');
+        toast.success("Signed in with Google!");
+      } catch (bridgeErr) {
+        console.warn('[Auth] Supabase bridge failed:', bridgeErr);
+        toast.warning("Signed in, syncing database...");
+        // Still allow navigation - route guard will retry
+      }
+      
       // onFirebaseAuthChange will navigate
     } catch (err: any) {
+      console.error('[Auth] Google sign-in error:', err);
       const msg = friendlyFirebaseError(err.code ?? "", err.message ?? "Google sign-in failed.");
       if (msg) toast.error(msg);
     } finally {
@@ -97,13 +115,28 @@ export default function AuthPage() {
 
     if (mode === "signup") {
       try {
+        console.log('[Auth] Starting signup for', email);
         const user = await signUpWithEmail(email, password);
+        console.log('[Auth] Firebase signup successful, bridging to Supabase');
+        
         // Bridge Supabase (may need email confirm first, but we try)
-        await bridgeEmail(email, password).catch(() => {});
+        try {
+          await bridgeEmail(email, password);
+          console.log('[Auth] Supabase bridge successful');
+        } catch (bridgeErr) {
+          console.warn('[Auth] Supabase bridge failed:', bridgeErr);
+          // Don't fail the whole signup if bridge fails - user can retry login
+        }
+        
         setBusy(false);
-        if (!user.emailVerified) setVerifyPending(true);
+        if (!user.emailVerified) {
+          setVerifyPending(true);
+        } else {
+          toast.success("Account created! Redirecting...");
+        }
       } catch (err: any) {
         setBusy(false);
+        console.error('[Auth] Signup error:', err);
         toast.error(friendlyFirebaseError(err.code ?? "", err.message ?? "Sign-up failed."));
       }
       return;
@@ -111,12 +144,26 @@ export default function AuthPage() {
 
     // sign in
     try {
+      console.log('[Auth] Starting signin for', email);
       await signInWithEmail(email, password);
-      await bridgeEmail(email, password).catch(() => {});
-      // onFirebaseAuthChange navigates
+      console.log('[Auth] Firebase signin successful, bridging to Supabase');
+      
+      try {
+        await bridgeEmail(email, password);
+        console.log('[Auth] Supabase bridge successful');
+        toast.success("Signed in successfully!");
+      } catch (bridgeErr) {
+        console.warn('[Auth] Supabase bridge failed:', bridgeErr);
+        toast.warning("Signed in to Firebase, syncing database...");
+        // Still allow navigation - the route guard will retry the bridge
+      }
+      
+      // onFirebaseAuthChange will navigate
     } catch (err: any) {
       setBusy(false);
       const code = err.code ?? "";
+      console.error('[Auth] Signin error:', code, err.message);
+      
       if (code === "auth/email-not-verified") {
         setVerifyPending(true);
       } else {
