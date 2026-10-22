@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Auth Test - CYBERGUARD X</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .status-box {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .status-item:last-child {
+            border-bottom: none;
+        }
+        
+        .icon {
+            font-size: 20px;
+        }
+        
+        .label {
+            flex: 1;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .value {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .test-section {
+            margin-top: 30px;
+        }
+        
+        .test-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border 0.3s;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+        
+        .btn-google {
+            background: #4285f4;
+            color: white;
+        }
+        
+        .btn-google:hover {
+            background: #357ae8;
+            transform: translateY(-2px);
+        }
+        
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #667eea;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔥 Firebase Auth Test</h1>
+        <p class="subtitle">CYBERGUARD X - Authentication Verification</p>
+        
+        <div class="status-box">
+            <div class="status-item">
+                <span class="icon">🔧</span>
+                <span class="label">Firebase Project</span>
+                <span class="value" id="projectId">Loading...</span>
+            </div>
+            <div class="status-item">
+                <span class="icon">🔑</span>
+                <span class="label">API Key</span>
+                <span class="value" id="apiKey">Loading...</span>
+            </div>
+            <div class="status-item">
+                <span class="icon">📧</span>
+                <span class="label">Email/Password</span>
+                <span class="value" id="emailStatus">Checking...</span>
+            </div>
+            <div class="status-item">
+                <span class="icon">🌐</span>
+                <span class="label">Google OAuth</span>
+                <span class="value" id="googleStatus">Checking...</span>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">Test Email/Password Authentication</div>
+            <div class="input-group">
+                <label>Email</label>
+                <input type="email" id="email" placeholder="test@example.com">
+            </div>
+            <div class="input-group">
+                <label>Password</label>
+                <input type="password" id="password" placeholder="Password (min 6 characters)">
+            </div>
+            <div class="button-group">
+                <button class="btn-primary" onclick="testSignUp()">Sign Up</button>
+                <button class="btn-secondary" onclick="testSignIn()">Sign In</button>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">Test Google Authentication</div>
+            <button class="btn-google" onclick="testGoogle()" style="width: 100%;">
+                Continue with Google
+            </button>
+        </div>
+        
+        <div id="result"></div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { 
+            getAuth, 
+            createUserWithEmailAndPassword,
+            signInWithEmailAndPassword,
+            GoogleAuthProvider,
+            signInWithPopup
+        } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyB-dU6gK9VVPMvHE6nwqqwQmi0MUklPBm0",
+            authDomain: "cyberguard-6d718.firebaseapp.com",
+            projectId: "cyberguard-6d718",
+            storageBucket: "cyberguard-6d718.firebasestorage.app",
+            messagingSenderId: "796904954594",
+            appId: "1:796904954594:web:6e06fafa3e660097491cbb",
+            measurementId: "G-HCVPHVCB6L"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        // Update status
+        document.getElementById('projectId').textContent = firebaseConfig.projectId;
+        document.getElementById('apiKey').textContent = firebaseConfig.apiKey.substring(0, 20) + '...';
+
+        // Test functions
+        window.testSignUp = async function() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const result = document.getElementById('result');
+            
+            if (!email || !password) {
+                showResult('Please enter email and password', 'error');
+                return;
+            }
+            
+            showResult('Creating account...', 'info');
+            
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                showResult(`✅ SUCCESS! Account created for ${userCredential.user.email}`, 'success');
+                document.getElementById('emailStatus').textContent = '✅ Enabled';
+            } catch (error) {
+                if (error.code === 'auth/operation-not-allowed') {
+                    showResult('❌ Email/Password not enabled in Firebase Console!', 'error');
+                    document.getElementById('emailStatus').textContent = '❌ Disabled';
+                } else {
+                    showResult(`❌ Error: ${error.message}`, 'error');
+                }
+            }
+        };
+
+        window.testSignIn = async function() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const result = document.getElementById('result');
+            
+            if (!email || !password) {
+                showResult('Please enter email and password', 'error');
+                return;
+            }
+            
+            showResult('Signing in...', 'info');
+            
+            try {
+                const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                showResult(`✅ SUCCESS! Signed in as ${userCredential.user.email}`, 'success');
+                document.getElementById('emailStatus').textContent = '✅ Enabled';
+            } catch (error) {
+                if (error.code === 'auth/operation-not-allowed') {
+                    showResult('❌ Email/Password not enabled in Firebase Console!', 'error');
+                    document.getElementById('emailStatus').textContent = '❌ Disabled';
+                } else {
+                    showResult(`❌ Error: ${error.message}`, 'error');
+                }
+            }
+        };
+
+        window.testGoogle = async function() {
+            const result = document.getElementById('result');
+            showResult('Opening Google sign-in popup...', 'info');
+            
+            try {
+                const provider = new GoogleAuthProvider();
+                const userCredential = await signInWithPopup(auth, provider);
+                showResult(`✅ SUCCESS! Signed in as ${userCredential.user.email}`, 'success');
+                document.getElementById('googleStatus').textContent = '✅ Enabled';
+            } catch (error) {
+                if (error.code === 'auth/operation-not-allowed') {
+                    showResult('❌ Google Auth not enabled in Firebase Console!', 'error');
+                    document.getElementById('googleStatus').textContent = '❌ Disabled';
+                } else if (error.code === 'auth/popup-closed-by-user') {
+                    showResult('⚠️ Popup closed. Try again.', 'error');
+                } else {
+                    showResult(`❌ Error: ${error.message}`, 'error');
+                }
+            }
+        };
+
+        function showResult(message, type) {
+            const result = document.getElementById('result');
+            result.textContent = message;
+            result.className = type;
+            result.style.display = 'block';
+        }
+
+        // Initial check
+        setTimeout(() => {
+            document.getElementById('emailStatus').textContent = 'Ready to test';
+            document.getElementById('googleStatus').textContent = 'Ready to test';
+        }, 1000);
+    </script>
+</body>
+</html>
