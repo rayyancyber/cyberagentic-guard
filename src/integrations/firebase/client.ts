@@ -21,13 +21,13 @@ import {
 // ─── Config ─────────────────────────────────────────────────────────────────
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAKW0cSWP5Rp7Gvqb5AyiBq_ReW4xm70BM",
-  authDomain: "cyberagentic-guard.firebaseapp.com",
-  projectId: "cyberagentic-guard",
-  storageBucket: "cyberagentic-guard.firebasestorage.app",
-  messagingSenderId: "483151789114",
-  appId: "1:483151789114:web:ead547c58c631ef5388903",
-  measurementId: "G-ZHBVLVVNS9",
+  apiKey: "AIzaSyB-dU6gK9VVPMvHE6nwqqwQmi0MUklPBm0",
+  authDomain: "cyberguard-6d718.firebaseapp.com",
+  projectId: "cyberguard-6d718",
+  storageBucket: "cyberguard-6d718.firebasestorage.app",
+  messagingSenderId: "796904954594",
+  appId: "1:796904954594:web:6e06fafa3e660097491cbb",
+  measurementId: "G-HCVPHVCB6L",
 };
 
 // ─── Singleton init ──────────────────────────────────────────────────────────
